@@ -1,9 +1,10 @@
-use anyhow::bail;
 use std::net::{Ipv4Addr, Ipv6Addr};
 
 use ipnetwork::{Ipv4Network, Ipv6Network};
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
+
+use crate::prelude::*;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Config {

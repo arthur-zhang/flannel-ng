@@ -4,13 +4,11 @@ use async_trait::async_trait;
 
 use crate::lease::Lease;
 use crate::subnet::config::Config;
+use crate::subnet::SubnetManager;
 
 #[async_trait]
-pub trait Backend<T>
-where
-    T: Network + Sized,
-{
-    async fn register_network(mut self, config: &Config) -> anyhow::Result<T>;
+pub trait Backend {
+    async fn register_network(&mut self, config: &Config) -> anyhow::Result<Box<dyn Network + Send>>;
 }
 
 #[async_trait]

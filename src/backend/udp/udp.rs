@@ -4,19 +4,19 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use etcd_client::EventType;
 use ipnetwork::{IpNetwork, Ipv4Network};
+use netlink_ng::Addr;
 use netlink_ng::types::Route;
-use netlink_ng::{Addr, LinkId};
 use nix::libc::RT_SCOPE_UNIVERSE;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::UdpSocket;
 
 use crate::backend::common::{Backend, Network};
-use crate::backend::udp::codec::IpSlice;
 use crate::backend::ExternalInterface;
+use crate::backend::udp::codec::IpSlice;
 use crate::etcd::LeaseWatchEvent;
 use crate::lease::{Lease, LeaseAttrs};
+use crate::subnet::{SubnetManager, TSubnetManager};
 use crate::subnet::config::Config;
-use crate::subnet::SubnetManager;
 use crate::tun;
 use crate::tun::Tun;
 
@@ -29,9 +29,15 @@ pub struct UdpBackend {
     ext_iface: ExternalInterface,
 }
 
+impl UdpBackend {
+    pub fn new(subnet_manager: SubnetManager, ext_iface: ExternalInterface) -> Self {
+        UdpBackend { sm: subnet_manager, ext_iface }
+    }
+}
+
 #[async_trait]
-impl Backend<UdpNetwork> for UdpBackend {
-    async fn register_network(mut self, config: &Config) -> anyhow::Result<UdpNetwork> {
+impl Backend for UdpBackend {
+    async fn register_network(&mut self, config: &Config) -> anyhow::Result<Box<dyn Network + Send>> {
         let port = get_port_from_config(config);
         let attrs = LeaseAttrs {
             public_ip: self.ext_iface.iface_addr,
@@ -45,13 +51,8 @@ impl Backend<UdpNetwork> for UdpBackend {
         let tun_net = Ipv4Network::new(lease.subnet.ip(), net.prefix())?;
 
         println!("lease: {:?}", lease);
-        Ok(UdpNetwork::new(self.sm, self.ext_iface, port, tun_net, lease).await?)
-    }
-}
-
-impl UdpBackend {
-    pub fn new(sm: SubnetManager, ext_iface: ExternalInterface) -> Self {
-        UdpBackend { sm, ext_iface }
+        let nw = UdpNetwork::new(self.sm.clone(), self.ext_iface.clone(), port, tun_net, lease).await?;
+        Ok(Box::new(nw))
     }
 }
 
@@ -66,16 +67,15 @@ fn configure_tun(ifname: &str, ip_network: &Ipv4Network, mtu: u32) -> anyhow::Re
     let ip_local = Ipv4Network::new(ip_network.ip(), 32)?;
 
     netlink_ng::addr_add(
-        &link,
+        link.as_index(),
         &Addr {
             ipnet: IpNetwork::V4(ip_local),
             label: "".to_string(),
             ..Default::default()
         },
     )?;
-    let link_id: LinkId = LinkId::from(&link);
-    netlink_ng::link_set_mtu(link_id, mtu)?;
-    netlink_ng::link_set_up(link_id)?;
+    netlink_ng::link_set_mtu(link.as_index(), mtu)?;
+    netlink_ng::link_set_up(link.as_index())?;
 
     netlink_ng::route_add(&Route {
         link_index: link.attrs().index,
@@ -89,7 +89,6 @@ fn configure_tun(ifname: &str, ip_network: &Ipv4Network, mtu: u32) -> anyhow::Re
     Ok(())
 }
 
-type TSubnetManager = Arc<SubnetManager>;
 
 pub struct UdpNetwork {
     pub ext_iface: ExternalInterface,
@@ -108,7 +107,7 @@ impl UdpNetwork {
         port: u16,
         nw: Ipv4Network,
         lease: Lease,
-    ) -> anyhow::Result<Self> {
+    ) -> anyhow::Result<UdpNetwork> {
         let mut n = UdpNetwork {
             ext_iface,
             subnet_lease: lease,
@@ -126,7 +125,7 @@ impl UdpNetwork {
         return Ok(n);
     }
     async fn init_tun(&mut self) -> anyhow::Result<()> {
-        let (tun, name) = tun::open_tun("flannel%d").await?;
+        let (tun, name) = tun::open_tun("flannel%d")?;
         self.tun_file = Some(Tun::new(tun)?);
         configure_tun(&name, &self.tun_net, self.mtu())?;
         Ok(())

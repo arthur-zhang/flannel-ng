@@ -4,13 +4,11 @@ use std::io::Read;
 use std::net::{IpAddr, Ipv4Addr};
 use std::path::Path;
 
-use anyhow::bail;
+use prelude::*;
 use clap::Parser;
 use netlink_ng::nl_type::FAMILY_V4;
-use netlink_ng::LinkId;
 
-use crate::backend::udp::UdpBackend;
-use crate::backend::{Backend, ExternalInterface, Interface, Network};
+use crate::backend::{Backend, BackendManager, ExternalInterface, Interface, Network};
 use crate::etcd::{EtcdConfig, EtcdSubnetRegistry};
 use crate::ip::get_default_gateway_interface;
 use crate::subnet::SubnetManager;
@@ -21,6 +19,8 @@ mod ip;
 mod lease;
 mod subnet;
 mod tun;
+pub mod prelude;
+mod mac;
 
 #[derive(Parser, Debug)]
 #[clap(author, about, long_about = None)]
@@ -117,7 +117,7 @@ async fn main() -> anyhow::Result<()> {
     };
     println!("etcd cfg: {:?}", cfg);
     let ext_iface = lookup_ext_iface()?;
-    println!("ext iface: {:?}", cfg);
+    println!("ext iface: {:?}", ext_iface);
     let subnet_file_map = read_from_subnet_env(Path::new(&args.subnet_file))?;
     println!("subnet_file_map: {:?}", subnet_file_map);
     let prev_subnet = subnet_file_map
@@ -130,8 +130,13 @@ async fn main() -> anyhow::Result<()> {
         prev_subnet,
         args.subnet_lease_renew_margin,
     );
+
     let config = sm.get_network_config().await?;
-    let backend = UdpBackend::new(sm.clone(), ext_iface);
+
+    let backend_type = config.backend_type.as_ref().unwrap();
+
+    let backend_manager = BackendManager::new(sm.clone(), ext_iface.clone());
+    let mut backend = backend_manager.get_backend(&backend_type)?;
     let mut bn = backend.register_network(&config).await?;
 
     SubnetManager::write_subnet_file(
@@ -153,7 +158,7 @@ async fn main() -> anyhow::Result<()> {
 }
 
 fn get_iface_addrs(ext_iface: &Interface) -> anyhow::Result<Vec<Ipv4Addr>> {
-    let addr_list = netlink_ng::addr_list(LinkId::Id(ext_iface.index), FAMILY_V4)?;
+    let addr_list = netlink_ng::addr_list(ext_iface.index, FAMILY_V4)?;
     let mut addrs = vec![];
     let mut ll = vec![];
     for addr in addr_list {

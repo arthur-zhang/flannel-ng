@@ -24,7 +24,7 @@ macro_rules! ready {
     };
 }
 
-pub async fn open_tun(name: &str) -> anyhow::Result<(RawFd, String)> {
+pub fn open_tun(name: &str) -> anyhow::Result<(RawFd, String)> {
     let tun_fd = unsafe { libc::open(b"/dev/net/tun\0".as_ptr() as *const _, O_RDWR) } as RawFd;
 
     let mut req: ifreq = unsafe { std::mem::zeroed() };

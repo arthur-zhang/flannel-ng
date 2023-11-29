@@ -3,6 +3,7 @@ use std::time::SystemTime;
 
 use ipnetwork::{Ipv4Network, Ipv6Network};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 #[derive(Debug, Clone)]
 pub struct Lease {
@@ -26,6 +27,7 @@ impl Default for Lease {
                 public_ip: "0.0.0.0".parse().unwrap(),
                 public_ipv6: None,
                 backend_type: None,
+                ..Default::default()
             },
             expiration: SystemTime::now(),
             // asof: 0,
@@ -41,6 +43,8 @@ pub struct LeaseAttrs {
     pub public_ipv6: Option<Ipv6Network>,
     #[serde(rename = "BackendType", skip_serializing_if = "Option::is_none")]
     pub backend_type: Option<String>,
+    #[serde(rename = "BackendData", skip_serializing_if = "Option::is_none")]
+    pub backend_data: Option<Value>,
 }
 
 impl Default for LeaseAttrs {
@@ -49,6 +53,7 @@ impl Default for LeaseAttrs {
             public_ip: Ipv4Addr::UNSPECIFIED,
             public_ipv6: None,
             backend_type: None,
+            backend_data: None,
         }
     }
 }

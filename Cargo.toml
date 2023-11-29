@@ -19,3 +19,4 @@ regex = "1.10.2"
 rand = "0.8.5"
 async-trait = "0.1.74"
 bytes = "1.5.0"
+macaddr = { version = "1.0.1", features = ["serde_std"] }
