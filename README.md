@@ -8,7 +8,7 @@ flannel-ng is a rust implementation of the [Flannel](https://github.com/flannel-
 Support full-featured udp backend, other backends will be added in the future.
 
 - [x] UDP
-- [ ] VXLAN
+- [x] VXLAN
 - [ ] Host-GW
 
 ## Getting Started
