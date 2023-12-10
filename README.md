@@ -9,7 +9,7 @@ Support full-featured udp backend, other backends will be added in the future.
 
 - [x] UDP
 - [x] VXLAN
-- [ ] Host-GW
+- [x] Host-GW
 
 ## Getting Started
 
