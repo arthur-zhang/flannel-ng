@@ -88,7 +88,7 @@ impl Network for VxlanNetwork {
                             gw: Some(IpAddr::V4(sn.ip())),
                             ..Default::default()
                         };
-                        route.flags |= 0x4;// RTNH_F_ONLINK
+                        route.flags |= netlink_ng::RTNH_F_ONLINK as u32;
 
                         netlink_ng::route_replace(&route)?;
                     }

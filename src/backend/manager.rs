@@ -1,4 +1,5 @@
 use crate::backend::{Backend, ExternalInterface};
+use crate::backend::hostgw::hostgw::HostGw;
 use crate::backend::udp::UdpBackend;
 use crate::backend::vxlan::Vxlan;
 use crate::subnet::SubnetManager;
@@ -23,6 +24,10 @@ impl BackendManager {
             }
             "udp" => {
                 let backend = UdpBackend::new(self.subnet_manager, self.ext_iface);
+                Ok(Box::new(backend))
+            }
+            "host-gw" => {
+                let backend = HostGw::new(self.subnet_manager, self.ext_iface)?;
                 Ok(Box::new(backend))
             }
             _ => {
